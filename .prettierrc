@@ -1,0 +1,13 @@
+{
+    "tabWidth": 4,
+    "quoteProps": "consistent",
+    "bracketSpacing": true,
+    "overrides": [
+        {
+            "files": "*.yaml",
+            "options": {
+                "tabWidth": 2
+            }
+        }
+    ]
+}

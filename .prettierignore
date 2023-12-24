@@ -1,0 +1,3 @@
+# ignore go templates (https://github.com/prettier/prettier/issues/6517)
+powergrid/templates/*
+powergrid/crds/*

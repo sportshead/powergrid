@@ -1,6 +1,6 @@
 apiVersion: v2
 name: powergrid
-description: A Helm chart for Kubernetes
+description: Like nginx, but for Discord bots.
 
 # A chart can be either an 'application' or a 'library' chart.
 #

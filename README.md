@@ -5,17 +5,16 @@ Like nginx, but for Discord bots.
 
 ## setup
 ```bash
-$ cp ./powergrid/values.yaml myvalues.yaml
+$ wget -O myvalues.yaml https://github.com/sportshead/powergrid/raw/master/powergrid/values.yaml
 $ vim myvalues.yaml # set secrets, ingress
 $ kubectl create namespace powergrid-development && kubectl config set-context --current --namespace=powergrid-development
-$ docker build -t ghcr.io/sportshead/powergrid-coordinator:0.1.0 ./coordinator/
-$ helm upgrade --install -f myvalues.yaml powergrid ./powergrid
+$ helm repo add powergrid https://sportshead.github.io/powergrid
+$ helm upgrade --install --wait -f myvalues.yaml powergrid powergrid/powergrid
 ```
 
 ## run an example bot
 ```bash
-$ docker build -t ghcr.io/sportshead/powergrid-examples-bunbot:1.0.0 ./examples/bun
-$ kubectl apply -f ./examples/bun/bunbot.yaml
+$ kubectl apply -f https://github.com/sportshead/powergrid/raw/master/examples/bun/bunbot.yaml
 $ kubectl rollout restart deployment/powergrid # discover new CRD changes
 ```
 

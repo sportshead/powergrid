@@ -7,7 +7,6 @@ import {
     InteractionType,
 } from "discord-api-types/v10";
 
-
 Bun.serve({
     async fetch(req: Request) {
         // we can assume the request has been verified already

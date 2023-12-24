@@ -6,6 +6,6 @@
         "prettier": "3.1.1"
     },
     "scripts": {
-        "lint": "prettier -w powergrid/ examples/ *.json *.yaml"
+        "lint": "prettier -w powergrid/ examples/ .github/workflows *.json *.yaml"
     }
 }

@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: bot
-          image: ghcr.io/sportshead/powergrid-examples-bunbot:1.0.0
+          image: ghcr.io/sportshead/powergrid-examples-bunbot:0.1.0
           ports:
             - name: http
               containerPort: 3000

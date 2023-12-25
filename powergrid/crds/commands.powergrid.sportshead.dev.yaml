@@ -29,12 +29,16 @@ spec:
             spec:
               type: object
               properties:
+                shouldSendDeferred:
+                  description: Tells coordinator whether or not to respond with an initial deferred message to Discord. If true, any response from the service will be ignored. Use the interaction token in the request to send follow up messages instead.
+                  type: boolean
                 serviceName:
                   type: string
                 # https://raw.githubusercontent.com/discord/discord-api-spec/44f6253fbd183c5bba94dec50024fcd7fb83f7e7/specs/openapi.json
                 # can't be parsed from the JSON, needs to be manually rewritten
                 # k8s openapi subset is goofy
                 command:
+                  x-kubernetes-preserve-unknown-fields: true
                   type: object
                   properties:
                     name:

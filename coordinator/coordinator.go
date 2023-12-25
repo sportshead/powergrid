@@ -27,13 +27,17 @@ var DiscordBotToken string
 var DiscordOauthSecret string
 
 // replaced at build time
-const BuildCommitHash = "dev"
-const serverHeader = "coordinator/" + BuildCommitHash
+var BuildCommitHash = "dev"
+var serverHeader = "coordinator/" + BuildCommitHash
 
 const JSONMimeType = "application/json"
 
 func main() {
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, nil)))
+	if BuildCommitHash == "dev" {
+		slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	} else {
+		slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, nil)))
+	}
 
 	discordPublicKey := os.Getenv("DISCORD_PUBLIC_KEY")
 	if discordPublicKey == "" {
@@ -68,7 +72,7 @@ func main() {
 	initKubernetes()
 
 	server := http.NewServeMux()
-	server.HandleFunc("/", handlePublic)
+	server.HandleFunc("/", handleHTTP)
 	server.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok\nrunning " + BuildCommitHash))
@@ -87,7 +91,14 @@ const (
 	UpstreamErrorMessage  = "**Error**: Upstream returned error `%d %s`"
 )
 
-func handlePublic(w http.ResponseWriter, r *http.Request) {
+const (
+	// InteractionResponsePongJSON is the JSON representation of a discordgo.InteractionResponsePong
+	InteractionResponsePongJSON = `{"type":1}`
+	// InteractionResponseDeferredChannelMessageWithSourceJSON is the JSON representation of a discordgo.InteractionResponseDeferredChannelMessageWithSource
+	InteractionResponseDeferredChannelMessageWithSourceJSON = `{"type":5}`
+)
+
+func handleHTTP(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		err := recover()
 		if err != nil {
@@ -122,15 +133,10 @@ func handlePublic(w http.ResponseWriter, r *http.Request) {
 
 	switch interaction.Type {
 	case discordgo.InteractionPing:
-		w.Header().Set("Content-Type", JSONMimeType)
-
-		// type: discordgo.InteractionResponsePong
-		_, err = w.Write([]byte(`{"type":1}`))
-		if err != nil {
-			slog.Error("failed to write response body", slogTag("failed_write_body"), slogError(err))
-			return
+		if writeJSONString(w, InteractionResponsePongJSON) {
+			slog.Info("responding to ping", slogTag("pong"), slog.String("ip", getIP(r)))
 		}
-		slog.Info("responding to ping", slogTag("pong"), slog.String("ip", getIP(r)))
+
 	case discordgo.InteractionApplicationCommand:
 		data := interaction.Data.(discordgo.ApplicationCommandInteractionData)
 		slog.Info("application command executed", slogTag("command_executed"), slog.String("command", data.Name), slog.String("user", interaction.Member.User.ID))
@@ -150,42 +156,63 @@ func handlePublic(w http.ResponseWriter, r *http.Request) {
 			req.Body = io.NopCloser(bytes.NewReader(body))
 			req.RequestURI = ""
 
-			res, err := http.DefaultClient.Do(req)
-			if err != nil {
-				slog.Error("failed to forward request", slogTag("failed_forward_request"), slogError(err))
-				writeMessage(w, ForwardFailedMessage)
+			var shouldDefer bool
+			shouldDefer, ok = cmd.Object["spec"].(map[string]interface{})["shouldSendDeferred"].(bool)
+			if !ok {
+				shouldDefer = false
+			}
+			if shouldDefer {
+				writeJSONString(w, InteractionResponseDeferredChannelMessageWithSourceJSON)
+				go handleApplicationCommand(w, req, shouldDefer, data, interaction, addr, body)
 				return
 			}
-			if res.StatusCode != http.StatusOK {
-				slog.Error("upstream returned error",
-					slogTag("upstream_error"),
-					slog.Int("status", res.StatusCode),
-					slog.String("status_text", res.Status),
-					slog.String("command", data.Name),
-					slog.String("user", interaction.Member.User.ID),
-					slog.String("addr", addr),
-					slog.String("body", string(body)),
-					slog.String("response", fmt.Sprint(io.ReadAll(req.Body))))
-				writeMessage(w, fmt.Sprintf(UpstreamErrorMessage, res.StatusCode, res.Status))
-				return
-			}
-
-			w.Header().Set("Content-Type", res.Header.Get("Content-Type"))
-			w.WriteHeader(http.StatusOK)
-			_, err = io.Copy(w, res.Body)
-
-			if err != nil {
-				slog.Error("failed to copy response body", slogTag("failed_write_body"), slogError(err))
-				return
-			}
-
-			slog.Info("handled command", slogTag("command_executed"), slog.String("command", data.Name), slog.String("user", interaction.Member.User.ID), slog.String("addr", addr), slog.Int("status", res.StatusCode))
+			handleApplicationCommand(w, req, shouldDefer, data, interaction, addr, body)
 		} else {
 			slog.Error("missing handler for command", slogTag("unknown_command"), slog.String("command", data.Name), slog.String("user", interaction.Member.User.ID))
 			writeMessage(w, MissingHandlerMessage)
 			return
 		}
 	}
+}
+
+func handleApplicationCommand(w http.ResponseWriter, req *http.Request, shouldDefer bool, data discordgo.ApplicationCommandInteractionData, interaction *discordgo.Interaction, addr string, body []byte) {
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		slog.Error("failed to forward request", slogTag("failed_forward_request"), slogError(err))
+		if !shouldDefer {
+			writeMessage(w, ForwardFailedMessage)
+		}
+		return
+	}
+	if res.StatusCode != http.StatusOK {
+		slog.Error("upstream returned error",
+			slogTag("upstream_error"),
+			slog.Int("status", res.StatusCode),
+			slog.String("status_text", res.Status),
+			slog.String("command", data.Name),
+			slog.String("user", interaction.Member.User.ID),
+			slog.String("addr", addr),
+			slog.String("body", string(body)),
+			slog.String("response", fmt.Sprint(io.ReadAll(req.Body))))
+		if !shouldDefer {
+			writeMessage(w, fmt.Sprintf(UpstreamErrorMessage, res.StatusCode, res.Status))
+		}
+		return
+	}
+
+	if !shouldDefer {
+		w.Header().Set("Content-Type", res.Header.Get("Content-Type"))
+		w.WriteHeader(http.StatusOK)
+		_, err = io.Copy(w, res.Body)
+
+		if err != nil {
+			slog.Error("failed to copy response body", slogTag("failed_write_body"), slogError(err))
+			return
+		}
+	}
+
+	slog.Info("handled command", slogTag("command_executed"), slog.String("command", data.Name), slog.String("user", interaction.Member.User.ID), slog.String("addr", addr), slog.Int("status", res.StatusCode), slog.Bool("deferred", shouldDefer))
+	return
 }
 
 func getIP(r *http.Request) string {
@@ -200,6 +227,18 @@ func getIP(r *http.Request) string {
 		ip = r.RemoteAddr
 	}
 	return ip
+}
+
+func writeJSONString(w http.ResponseWriter, data string) bool {
+	w.Header().Set("Content-Type", JSONMimeType)
+	w.WriteHeader(http.StatusOK)
+
+	_, err := w.Write([]byte(data))
+	if err != nil {
+		slog.Error("failed to write JSON", slogTag("failed_write_json"), slogError(err), slog.String("data", data))
+		return false
+	}
+	return true
 }
 
 func writeMessage(w http.ResponseWriter, message string) {

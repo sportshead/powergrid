@@ -10,8 +10,5 @@
     },
     "dependencies": {
         "discord-api-types": "^0.37.66"
-    },
-    "scripts": {
-        "build": "docker build -t ghcr.io/sportshead/powergrid-examples-bunbot:1.0.0 ."
     }
 }

@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: bot
-          image: ghcr.io/sportshead/powergrid-examples-bunbot:0.1.0
+          image: ghcr.io/sportshead/powergrid-examples-bunbot:0.1.1
           ports:
             - name: http
               containerPort: 3000
@@ -52,4 +52,22 @@ spec:
       - name: name
         description: Who should we greet?
         type: 3
+        required: false
+---
+apiVersion: powergrid.sportshead.dev/v10
+kind: PowergridCommand
+metadata:
+  name: sleep
+spec:
+  serviceName: bunbot
+  shouldSendDeferred: true
+  command:
+    name: sleep
+    description: zzzzzz!
+    options:
+      - name: time
+        description: "Amount of time to sleep for (ms, default: 5000)"
+        type: 4
+        min_value: 0
+        max_value: 60000 # 1 minute
         required: false

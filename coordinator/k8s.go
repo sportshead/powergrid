@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -14,6 +13,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 var config *rest.Config
@@ -23,7 +23,7 @@ var client *dynamic.DynamicClient
 var namespace = v1.NamespaceDefault
 
 var discordCommandResource = schema.GroupVersionResource{Group: "powergrid.sportshead.dev", Version: "v10", Resource: "commands"}
-var CommandMap = make(map[string]*unstructured.Unstructured)
+var CommandMap = make(map[string]unstructured.Unstructured)
 
 func initKubernetes() {
 	var err error
@@ -55,7 +55,9 @@ func initKubernetes() {
 }
 
 func loadCommands() {
-	commands, err := client.Resource(discordCommandResource).Namespace(namespace).List(context.Background(), metav1.ListOptions{})
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	commands, err := client.Resource(discordCommandResource).Namespace(namespace).List(ctx, metav1.ListOptions{})
+	cancel()
 	if err != nil {
 		slog.Error("failed to get commands", slogTag("k8s_command_list_failed"), slogError(err))
 		os.Exit(1)
@@ -64,10 +66,11 @@ func loadCommands() {
 	for _, command := range commands.Items {
 		commandName := command.Object["spec"].(map[string]interface{})["command"].(map[string]interface{})["name"].(string)
 
-		CommandMap[commandName] = &command
+		CommandMap[commandName] = command
 
-		slog.Info("got command", slogTag("k8s_command_loaded"), slog.String("name", command.GetName()), slog.String("command", commandName))
+		slog.Info("got command", slogTag("k8s_command_loaded"), slog.String("name", command.GetName()), slog.String("command", commandName), slog.String("object", tryMarshal(command.Object)))
 	}
+	slog.Debug("got all commands", slog.String("commandMap", tryMarshal(CommandMap)))
 }
 
 var serviceResource = schema.GroupVersionResource{Group: "", Version: "v1", Resource: "services"}
@@ -112,17 +115,4 @@ func getServiceAddr(ctx context.Context, serviceName string) string {
 	}
 
 	return net.JoinHostPort(ip, port)
-}
-
-func tryMarshal(obj map[string]interface{}) string {
-	if obj == nil {
-		return "<nil>"
-	}
-
-	//bytes, err := json.Marshal(obj)
-	//if err == nil {
-	//	return string(bytes)
-	//}
-
-	return fmt.Sprintf("%#v", obj)
 }

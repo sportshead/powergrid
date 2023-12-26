@@ -143,7 +143,7 @@ func handleHTTP(w http.ResponseWriter, r *http.Request) {
 		if cmd, ok := CommandMap[data.Name]; ok {
 			addr := getServiceAddr(r.Context(), cmd.Object["spec"].(map[string]interface{})["serviceName"].(string))
 			if addr == "" {
-				slog.Error("failed to get service address", slogTag("failed_get_service_address"), slog.String("command", data.Name), slog.String("user", interaction.Member.User.ID))
+				slog.Error("failed to get service address", slogTag("failed_get_service_address"), slog.String("command", data.Name), slog.String("user", interaction.Member.User.ID), slog.String("body", string(body)))
 
 				writeMessage(w, MissingServiceMessage)
 				return
@@ -168,7 +168,7 @@ func handleHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			handleApplicationCommand(w, req, shouldDefer, data, interaction, addr, body)
 		} else {
-			slog.Error("missing handler for command", slogTag("unknown_command"), slog.String("command", data.Name), slog.String("user", interaction.Member.User.ID))
+			slog.Error("missing handler for command", slogTag("unknown_command"), slog.String("command", data.Name), slog.String("user", interaction.Member.User.ID), slog.String("body", string(body)))
 			writeMessage(w, MissingHandlerMessage)
 			return
 		}
@@ -178,7 +178,7 @@ func handleHTTP(w http.ResponseWriter, r *http.Request) {
 func handleApplicationCommand(w http.ResponseWriter, req *http.Request, shouldDefer bool, data discordgo.ApplicationCommandInteractionData, interaction *discordgo.Interaction, addr string, body []byte) {
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
-		slog.Error("failed to forward request", slogTag("failed_forward_request"), slogError(err))
+		slog.Error("failed to forward request", slogTag("failed_forward_request"), slogError(err), slog.String("body", string(body)))
 		if !shouldDefer {
 			writeMessage(w, ForwardFailedMessage)
 		}
@@ -206,7 +206,7 @@ func handleApplicationCommand(w http.ResponseWriter, req *http.Request, shouldDe
 		_, err = io.Copy(w, res.Body)
 
 		if err != nil {
-			slog.Error("failed to copy response body", slogTag("failed_write_body"), slogError(err))
+			slog.Error("failed to copy response body", slogTag("failed_write_body"), slogError(err), slog.String("body", string(body)))
 			return
 		}
 	}
@@ -251,6 +251,10 @@ func writeMessage(w http.ResponseWriter, message string) {
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
 			Content: message,
+			Flags:   discordgo.MessageFlagsEphemeral,
+			AllowedMentions: &discordgo.MessageAllowedMentions{
+				Parse: []discordgo.AllowedMentionType{},
+			},
 		},
 	}
 

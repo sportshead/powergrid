@@ -30,7 +30,7 @@ spec:
               type: object
               properties:
                 shouldSendDeferred:
-                  description: Tells coordinator whether or not to respond with an initial deferred message to Discord. If true, any response from the service will be ignored. Use the interaction token in the request to send follow up messages instead.
+                  description: Indicates whether to respond with an initial deferred message to Discord. If true, any response from the service will be ignored. Use the interaction token in the request to send follow up messages instead.
                   type: boolean
                 serviceName:
                   type: string

@@ -38,6 +38,7 @@ func main() {
 	} else {
 		slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, nil)))
 	}
+	slog.Info("starting coordinator", slogTag("start"), slog.String("hash", BuildCommitHash))
 
 	discordPublicKey := os.Getenv("DISCORD_PUBLIC_KEY")
 	if discordPublicKey == "" {
@@ -141,7 +142,7 @@ func handleHTTP(w http.ResponseWriter, r *http.Request) {
 		data := interaction.Data.(discordgo.ApplicationCommandInteractionData)
 		slog.Info("application command executed", slogTag("command_executed"), slog.String("command", data.Name), slog.String("user", interaction.Member.User.ID))
 		if cmd, ok := CommandMap[data.Name]; ok {
-			addr := getServiceAddr(r.Context(), cmd.Object["spec"].(map[string]interface{})["serviceName"].(string))
+			addr := getServiceAddr(r.Context(), cmd.Spec.ServiceName)
 			if addr == "" {
 				slog.Error("failed to get service address", slogTag("failed_get_service_address"), slog.String("command", data.Name), slog.String("user", interaction.Member.User.ID), slog.String("body", string(body)))
 
@@ -157,10 +158,7 @@ func handleHTTP(w http.ResponseWriter, r *http.Request) {
 			req.RequestURI = ""
 
 			var shouldDefer bool
-			shouldDefer, ok = cmd.Object["spec"].(map[string]interface{})["shouldSendDeferred"].(bool)
-			if !ok {
-				shouldDefer = false
-			}
+			shouldDefer = cmd.Spec.ShouldSendDeferred
 			if shouldDefer {
 				writeJSONString(w, InteractionResponseDeferredChannelMessageWithSourceJSON)
 				go handleApplicationCommand(w, req, shouldDefer, data, interaction, addr, body)
@@ -211,7 +209,16 @@ func handleApplicationCommand(w http.ResponseWriter, req *http.Request, shouldDe
 		}
 	}
 
-	slog.Info("handled command", slogTag("command_executed"), slog.String("command", data.Name), slog.String("user", interaction.Member.User.ID), slog.String("addr", addr), slog.Int("status", res.StatusCode), slog.Bool("deferred", shouldDefer))
+	slog.Info("handled command",
+		slogTag("command_executed"),
+		slog.String("command", data.Name),
+		slog.String("id", interaction.ID),
+		slog.String("user", interaction.Member.User.ID),
+		slog.String("guild", interaction.GuildID),
+		slog.String("channel", interaction.ChannelID),
+		slog.String("addr", addr),
+		slog.Int("status", res.StatusCode),
+		slog.Bool("deferred", shouldDefer))
 	return
 }
 

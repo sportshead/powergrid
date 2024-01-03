@@ -2,11 +2,12 @@ package main
 
 import (
 	"context"
-	v1 "k8s.io/api/core/v1"
+	"encoding/json"
+	powergridv10 "github.com/sportshead/powergrid/coordinator/pkg/apis/powergrid.sportshead.dev/v10"
+	clientset "github.com/sportshead/powergrid/coordinator/pkg/generated/clientset/versioned"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"log/slog"
 	"net"
@@ -18,12 +19,11 @@ import (
 
 var config *rest.Config
 
-// TODO: typed client
-var client *dynamic.DynamicClient
-var namespace = v1.NamespaceDefault
+var powergridClient *clientset.Clientset
+var kubernetesClient *kubernetes.Clientset
+var namespace = corev1.NamespaceDefault
 
-var discordCommandResource = schema.GroupVersionResource{Group: "powergrid.sportshead.dev", Version: "v10", Resource: "commands"}
-var CommandMap = make(map[string]unstructured.Unstructured)
+var CommandMap = make(map[string]powergridv10.Command)
 
 func initKubernetes() {
 	var err error
@@ -33,9 +33,14 @@ func initKubernetes() {
 		slog.Error("failed to get in cluster config", slogTag("k8s_config_create_failed"), slogError(err))
 		os.Exit(1)
 	}
-	client, err = dynamic.NewForConfig(config)
+	powergridClient, err = clientset.NewForConfig(config)
 	if err != nil {
-		slog.Error("failed to create dynamic client", slogTag("k8s_client_create_failed"), slogError(err))
+		slog.Error("failed to create k8s client", slogTag("k8s_client_create_failed"), slogError(err), slog.String("client", "powergrid"))
+		os.Exit(1)
+	}
+	kubernetesClient, err = kubernetes.NewForConfig(config)
+	if err != nil {
+		slog.Error("failed to create k8s client", slogTag("k8s_client_create_failed"), slogError(err), slog.String("client", "kubernetes"))
 		os.Exit(1)
 	}
 
@@ -54,9 +59,13 @@ func initKubernetes() {
 	go loadCommands()
 }
 
+type commandObject struct {
+	Name string `json:"name"`
+}
+
 func loadCommands() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	commands, err := client.Resource(discordCommandResource).Namespace(namespace).List(ctx, metav1.ListOptions{})
+	commands, err := powergridClient.PowergridV10().Commands(namespace).List(ctx, metav1.ListOptions{})
 	cancel()
 	if err != nil {
 		slog.Error("failed to get commands", slogTag("k8s_command_list_failed"), slogError(err))
@@ -64,53 +73,43 @@ func loadCommands() {
 	}
 
 	for _, command := range commands.Items {
-		commandName := command.Object["spec"].(map[string]interface{})["command"].(map[string]interface{})["name"].(string)
+		cmd := &commandObject{}
+		err = json.Unmarshal(command.Spec.Command.Raw, cmd)
+		if err != nil {
+			slog.Error("failed to parse command object", slogTag("k8s_command_parse_failed"), slogError(err), slog.String("object", tryMarshal(command)))
+			continue
+		}
 
-		CommandMap[commandName] = command
+		CommandMap[cmd.Name] = command
 
-		slog.Info("got command", slogTag("k8s_command_loaded"), slog.String("name", command.GetName()), slog.String("command", commandName), slog.String("object", tryMarshal(command.Object)))
+		slog.Info("got command", slogTag("k8s_command_loaded"), slog.String("name", command.GetName()), slog.String("command", cmd.Name), slog.String("object", tryMarshal(command)))
 	}
 	slog.Debug("got all commands", slog.String("commandMap", tryMarshal(CommandMap)))
 }
 
-var serviceResource = schema.GroupVersionResource{Group: "", Version: "v1", Resource: "services"}
-
 func getServiceAddr(ctx context.Context, serviceName string) string {
-	service, err := client.Resource(serviceResource).Namespace(namespace).Get(ctx, serviceName, metav1.GetOptions{})
+	service, err := kubernetesClient.CoreV1().Services(namespace).Get(ctx, serviceName, metav1.GetOptions{})
 	if err != nil {
 		slog.Error("failed to get service", slogTag("k8s_service_get_failed"), slogError(err))
 		return ""
 	}
-	spec, ok := service.Object["spec"].(map[string]interface{})
-	if !ok {
-		slog.Error("failed to cast spec", slogTag("k8s_service_cast_failed"), slog.String("key", "spec"), slog.String("object", tryMarshal(service.Object)))
-		return ""
-	}
-	ip, ok := spec["clusterIP"].(string)
-	if !ok {
-		slog.Error("failed to cast clusterIP", slogTag("k8s_service_cast_failed"), slog.String("key", "clusterIP"), slog.String("object", tryMarshal(service.Object)))
-		return ""
-	}
+
+	ip := service.Spec.ClusterIP
 	if ip == "" || ip == "None" {
-		slog.Error("service has no clusterIP", slogTag("k8s_service_missing_cluster_ip"), slog.String("name", serviceName), slog.String("object", tryMarshal(service.Object)))
+		slog.Error("service has no clusterIP", slogTag("k8s_service_missing_cluster_ip"), slog.String("name", serviceName), slog.String("object", tryMarshal(service)))
 		return ""
 	}
 
-	ports, ok := spec["ports"].([]interface{})
-	if !ok {
-		slog.Error("failed to cast ports", slogTag("k8s_service_cast_failed"), slog.String("key", "ports"), slog.String("object", tryMarshal(service.Object)))
-		return ""
-	}
+	ports := service.Spec.Ports
 	port := ""
-	for _, _p := range ports {
-		p := _p.(map[string]interface{})
-		if port == "" || p["name"] == "http" {
-			port = strconv.Itoa(int(p["port"].(int64)))
+	for _, p := range ports {
+		if port == "" || p.Name == "http" {
+			port = strconv.Itoa(int(p.Port))
 			break
 		}
 	}
 	if port == "" {
-		slog.Error("service has no http port", slogTag("k8s_service_missing_http_port"), slog.String("name", serviceName), slog.String("object", tryMarshal(service.Object)))
+		slog.Error("service has no http port", slogTag("k8s_service_missing_http_port"), slog.String("name", serviceName), slog.String("object", tryMarshal(service)))
 		return ""
 	}
 

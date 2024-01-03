@@ -40,7 +40,7 @@ spec:
       appProtocol: http
 ---
 apiVersion: powergrid.sportshead.dev/v10
-kind: PowergridCommand
+kind: Command
 metadata:
   name: pingjs
 spec:
@@ -55,7 +55,7 @@ spec:
         required: false
 ---
 apiVersion: powergrid.sportshead.dev/v10
-kind: PowergridCommand
+kind: Command
 metadata:
   name: sleep
 spec:

@@ -8,7 +8,7 @@ spec:
   names:
     plural: commands
     singular: command
-    kind: PowergridCommand
+    kind: Command
   versions:
     - name: v10
       served: true

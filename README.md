@@ -24,7 +24,7 @@ $ kubectl rollout restart deployment/powergrid # discover new CRD changes
   - [ ] discord.js
   - [ ] discord.py
 - [x] `shouldSendDeferred` option in `PowergridCommand` CRD
-- [ ] use typed kubernetes client in coordinator
+- [x] use typed kubernetes client in coordinator
 - [ ] watch for k8s `PowergridCommand` CRD changes
   - [ ] reconcile changes with Discord
   - [ ] support guild commands for development

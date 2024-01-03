@@ -7,6 +7,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"github.com/bwmarrin/discordgo"
+	"github.com/sportshead/powergrid/coordinator/kubernetes"
+	"github.com/sportshead/powergrid/coordinator/utils"
 	"io"
 	"k8s.io/apimachinery/pkg/util/json"
 	"log/slog"
@@ -38,39 +40,39 @@ func main() {
 	} else {
 		slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, nil)))
 	}
-	slog.Info("starting coordinator", slogTag("start"), slog.String("hash", BuildCommitHash))
+	slog.Info("starting coordinator", utils.Tag("start"), slog.String("hash", BuildCommitHash))
 
 	discordPublicKey := os.Getenv("DISCORD_PUBLIC_KEY")
 	if discordPublicKey == "" {
-		slog.Error("missing env variable", slogTag("invalid_env"), slog.String("key", "DISCORD_PUBLIC_KEY"))
+		slog.Error("missing env variable", utils.Tag("invalid_env"), slog.String("key", "DISCORD_PUBLIC_KEY"))
 		os.Exit(1)
 	}
 	var err error
 	DiscordPublicKey, err = hex.DecodeString(discordPublicKey)
 	if err != nil {
-		slog.Error("failed to parse hex", slogTag("invalid_env"), slogError(err), slog.String("key", "DISCORD_PUBLIC_KEY"))
+		slog.Error("failed to parse hex", utils.Tag("invalid_env"), utils.Error(err), slog.String("key", "DISCORD_PUBLIC_KEY"))
 		os.Exit(1)
 	}
 
 	DiscordApplicationId = os.Getenv("DISCORD_APPLICATION_ID")
 	if DiscordApplicationId == "" {
-		slog.Error("missing env variable", slogTag("invalid_env"), slog.String("key", "DISCORD_APPLICATION_ID"))
+		slog.Error("missing env variable", utils.Tag("invalid_env"), slog.String("key", "DISCORD_APPLICATION_ID"))
 		os.Exit(1)
 	}
 
 	DiscordBotToken = os.Getenv("DISCORD_BOT_TOKEN")
 	if DiscordBotToken == "" {
-		slog.Error("missing env variable", slogTag("invalid_env"), slog.String("key", "DISCORD_BOT_TOKEN"))
+		slog.Error("missing env variable", utils.Tag("invalid_env"), slog.String("key", "DISCORD_BOT_TOKEN"))
 		os.Exit(1)
 	}
 
 	DiscordOauthSecret = os.Getenv("DISCORD_OAUTH_SECRET")
 	if DiscordOauthSecret == "" {
-		slog.Error("missing env variable", slogTag("invalid_env"), slog.String("key", "DISCORD_OAUTH_SECRET"))
+		slog.Error("missing env variable", utils.Tag("invalid_env"), slog.String("key", "DISCORD_OAUTH_SECRET"))
 		os.Exit(1)
 	}
 
-	initKubernetes()
+	kubernetes.Init()
 
 	server := http.NewServeMux()
 	server.HandleFunc("/", handleHTTP)
@@ -79,9 +81,9 @@ func main() {
 		_, _ = w.Write([]byte("ok\nrunning " + BuildCommitHash))
 	})
 
-	slog.Info("public http server listening", slogTag("http_listen"), slog.String("addr", "0.0.0.0:8000"))
+	slog.Info("public http server listening", utils.Tag("http_listen"), slog.String("addr", "0.0.0.0:8000"))
 	err = http.ListenAndServe("0.0.0.0:8000", server)
-	slog.Error("public http server died", slogTag("http_died"), slogError(err))
+	slog.Error("public http server died", utils.Tag("http_died"), utils.Error(err))
 	os.Exit(1)
 }
 
@@ -103,7 +105,7 @@ func handleHTTP(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		err := recover()
 		if err != nil {
-			slog.Error("http handler panicked", slogTag("http_panic"), slog.Any("error", err))
+			slog.Error("http handler panicked", utils.Tag("http_panic"), slog.Any("error", err))
 		}
 	}()
 	w.Header().Set("Server", serverHeader)
@@ -119,7 +121,7 @@ func handleHTTP(w http.ResponseWriter, r *http.Request) {
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		slog.Error("failed to read request body", slogTag("failed_read_body"), slogError(err))
+		slog.Error("failed to read request body", utils.Tag("failed_read_body"), utils.Error(err))
 		http.Error(w, "failed to read request body", http.StatusInternalServerError)
 		return
 	}
@@ -127,7 +129,7 @@ func handleHTTP(w http.ResponseWriter, r *http.Request) {
 	var interaction = &discordgo.Interaction{}
 	err = interaction.UnmarshalJSON(body)
 	if err != nil {
-		slog.Error("failed to unmarshal json", slogTag("failed_unmarshal_json"), slogError(err), slog.String("body", string(body)))
+		slog.Error("failed to unmarshal json", utils.Tag("failed_unmarshal_json"), utils.Error(err), slog.String("body", string(body)))
 		http.Error(w, "failed to unmarshal json", http.StatusInternalServerError)
 		return
 	}
@@ -135,16 +137,16 @@ func handleHTTP(w http.ResponseWriter, r *http.Request) {
 	switch interaction.Type {
 	case discordgo.InteractionPing:
 		if writeJSONString(w, InteractionResponsePongJSON) {
-			slog.Info("responding to ping", slogTag("pong"), slog.String("ip", getIP(r)))
+			slog.Info("responding to ping", utils.Tag("pong"), slog.String("ip", getIP(r)))
 		}
 
 	case discordgo.InteractionApplicationCommand:
 		data := interaction.Data.(discordgo.ApplicationCommandInteractionData)
-		slog.Info("application command executed", slogTag("command_executed"), slog.String("command", data.Name), slog.String("user", interaction.Member.User.ID))
-		if cmd, ok := CommandMap[data.Name]; ok {
-			addr := getServiceAddr(r.Context(), cmd.Spec.ServiceName)
+		slog.Info("application command executed", utils.Tag("command_executed"), slog.String("command", data.Name), slog.String("user", interaction.Member.User.ID))
+		if cmd, ok := kubernetes.CommandMap[data.Name]; ok {
+			addr := kubernetes.GetServiceAddr(r.Context(), cmd.Spec.ServiceName)
 			if addr == "" {
-				slog.Error("failed to get service address", slogTag("failed_get_service_address"), slog.String("command", data.Name), slog.String("user", interaction.Member.User.ID), slog.String("body", string(body)))
+				slog.Error("failed to get service address", utils.Tag("failed_get_service_address"), slog.String("command", data.Name), slog.String("user", interaction.Member.User.ID), slog.String("body", string(body)))
 
 				writeMessage(w, MissingServiceMessage)
 				return
@@ -166,7 +168,7 @@ func handleHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			handleApplicationCommand(w, req, shouldDefer, data, interaction, addr, body)
 		} else {
-			slog.Error("missing handler for command", slogTag("unknown_command"), slog.String("command", data.Name), slog.String("user", interaction.Member.User.ID), slog.String("body", string(body)))
+			slog.Error("missing handler for command", utils.Tag("unknown_command"), slog.String("command", data.Name), slog.String("user", interaction.Member.User.ID), slog.String("body", string(body)))
 			writeMessage(w, MissingHandlerMessage)
 			return
 		}
@@ -176,7 +178,7 @@ func handleHTTP(w http.ResponseWriter, r *http.Request) {
 func handleApplicationCommand(w http.ResponseWriter, req *http.Request, shouldDefer bool, data discordgo.ApplicationCommandInteractionData, interaction *discordgo.Interaction, addr string, body []byte) {
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
-		slog.Error("failed to forward request", slogTag("failed_forward_request"), slogError(err), slog.String("body", string(body)))
+		slog.Error("failed to forward request", utils.Tag("failed_forward_request"), utils.Error(err), slog.String("body", string(body)))
 		if !shouldDefer {
 			writeMessage(w, ForwardFailedMessage)
 		}
@@ -184,7 +186,7 @@ func handleApplicationCommand(w http.ResponseWriter, req *http.Request, shouldDe
 	}
 	if res.StatusCode != http.StatusOK {
 		slog.Error("upstream returned error",
-			slogTag("upstream_error"),
+			utils.Tag("upstream_error"),
 			slog.Int("status", res.StatusCode),
 			slog.String("status_text", res.Status),
 			slog.String("command", data.Name),
@@ -204,13 +206,13 @@ func handleApplicationCommand(w http.ResponseWriter, req *http.Request, shouldDe
 		_, err = io.Copy(w, res.Body)
 
 		if err != nil {
-			slog.Error("failed to copy response body", slogTag("failed_write_body"), slogError(err), slog.String("body", string(body)))
+			slog.Error("failed to copy response body", utils.Tag("failed_write_body"), utils.Error(err), slog.String("body", string(body)))
 			return
 		}
 	}
 
 	slog.Info("handled command",
-		slogTag("command_executed"),
+		utils.Tag("command_executed"),
 		slog.String("command", data.Name),
 		slog.String("id", interaction.ID),
 		slog.String("user", interaction.Member.User.ID),
@@ -242,7 +244,7 @@ func writeJSONString(w http.ResponseWriter, data string) bool {
 
 	_, err := w.Write([]byte(data))
 	if err != nil {
-		slog.Error("failed to write JSON", slogTag("failed_write_json"), slogError(err), slog.String("data", data))
+		slog.Error("failed to write JSON", utils.Tag("failed_write_json"), utils.Error(err), slog.String("data", data))
 		return false
 	}
 	return true
@@ -267,7 +269,7 @@ func writeMessage(w http.ResponseWriter, message string) {
 
 	err := encoder.Encode(res)
 	if err != nil {
-		slog.Error("failed to write message", slogTag("failed_write_message"), slogError(err), slog.String("message", message))
+		slog.Error("failed to write message", utils.Tag("failed_write_message"), utils.Error(err), slog.String("message", message))
 		return
 	}
 }

@@ -1,11 +1,11 @@
-package main
+package utils
 
 import (
 	"encoding/json"
 	"fmt"
 )
 
-func tryMarshal(obj any) string {
+func TryMarshal(obj any) string {
 	if obj == nil {
 		return "<nil>"
 	}

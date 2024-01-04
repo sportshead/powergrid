@@ -1,42 +1,65 @@
 package kubernetes
 
 import (
-	"context"
 	"encoding/json"
+	"fmt"
 	powergridv10 "github.com/sportshead/powergrid/coordinator/pkg/apis/powergrid.sportshead.dev/v10"
+	informers "github.com/sportshead/powergrid/coordinator/pkg/generated/informers/externalversions"
 	"github.com/sportshead/powergrid/coordinator/utils"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/cache"
 	"log/slog"
 	"os"
 	"time"
 )
 
-var CommandMap = make(map[string]powergridv10.Command)
+const ByName = "DiscordCommandNameIndexer"
+
+var CommandInformer cache.SharedIndexInformer
 
 type commandObject struct {
 	Name string `json:"name"`
 }
 
 func loadCommands() {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	commands, err := powergridClient.PowergridV10().Commands(namespace).List(ctx, metav1.ListOptions{})
-	cancel()
+	factory := informers.NewSharedInformerFactoryWithOptions(powergridClient, 10*time.Minute, informers.WithNamespace(namespace))
+	CommandInformer = factory.Powergrid().V10().Commands().Informer()
+	err := CommandInformer.AddIndexers(map[string]cache.IndexFunc{
+		ByName: func(obj interface{}) ([]string, error) {
+			index := make([]string, 1)
+			command := obj.(*powergridv10.Command)
+			cmd := &commandObject{}
+			err := json.Unmarshal(command.Spec.Command.Raw, cmd)
+			if err != nil {
+				slog.Error("failed to parse command object", utils.Tag("k8s_command_parse_failed"), utils.Error(err), slog.String("object", utils.TryMarshal(command)))
+				return nil, err
+			}
+			index[0] = cmd.Name
+
+			slog.Info("indexing command", utils.Tag("k8s_index_command"), slog.String("name", command.Name), slog.String("command", cmd.Name))
+			return index, nil
+		},
+	})
 	if err != nil {
-		slog.Error("failed to get commands", utils.Tag("k8s_command_list_failed"), utils.Error(err))
+		slog.Error("failed to add indexer", utils.Tag("k8s_indexer_failed"), utils.Error(err))
 		os.Exit(1)
 	}
 
-	for _, command := range commands.Items {
-		cmd := &commandObject{}
-		err = json.Unmarshal(command.Spec.Command.Raw, cmd)
-		if err != nil {
-			slog.Error("failed to parse command object", utils.Tag("k8s_command_parse_failed"), utils.Error(err), slog.String("object", utils.TryMarshal(command)))
-			continue
-		}
+	stopCh := make(chan struct{})
+	factory.Start(stopCh)            // start goroutines
+	factory.WaitForCacheSync(stopCh) // wait for init
+}
 
-		CommandMap[cmd.Name] = command
-
-		slog.Info("got command", utils.Tag("k8s_command_loaded"), slog.String("name", command.GetName()), slog.String("command", cmd.Name), slog.String("object", utils.TryMarshal(command)))
+func GetCommand(name string) (*powergridv10.Command, error) {
+	commands, err := CommandInformer.GetIndexer().ByIndex(ByName, name)
+	if err != nil {
+		return nil, err
 	}
-	slog.Debug("got all commands", slog.String("commandMap", utils.TryMarshal(CommandMap)))
+	if len(commands) == 0 {
+		return nil, fmt.Errorf("no command matches the name %s", name)
+	}
+	if len(commands) > 1 {
+		return nil, fmt.Errorf("%d commands match the name %s", len(commands), name)
+	}
+
+	return commands[0].(*powergridv10.Command), nil
 }

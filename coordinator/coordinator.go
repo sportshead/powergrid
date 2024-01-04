@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/bwmarrin/discordgo"
 	"github.com/sportshead/powergrid/coordinator/kubernetes"
+	powergridv10 "github.com/sportshead/powergrid/coordinator/pkg/apis/powergrid.sportshead.dev/v10"
 	"github.com/sportshead/powergrid/coordinator/utils"
 	"io"
 	"k8s.io/apimachinery/pkg/util/json"
@@ -26,7 +27,7 @@ var DiscordApplicationId string
 var DiscordBotToken string
 
 // DISCORD_OAUTH_SECRET
-var DiscordOauthSecret string
+var DiscordOAuthSecret string
 
 // replaced at build time
 var BuildCommitHash = "dev"
@@ -50,8 +51,11 @@ func main() {
 	var err error
 	DiscordPublicKey, err = hex.DecodeString(discordPublicKey)
 	if err != nil {
-		slog.Error("failed to parse hex", utils.Tag("invalid_env"), utils.Error(err), slog.String("key", "DISCORD_PUBLIC_KEY"))
+		slog.Error("failed to parse hex", utils.Tag("invalid_env"), utils.Error(err), slog.String("key", "DISCORD_PUBLIC_KEY"), slog.String("hex", discordPublicKey))
 		os.Exit(1)
+	}
+	if len(DiscordPublicKey) != ed25519.PublicKeySize {
+		slog.Error("invalid public key length", utils.Tag("invalid_env"), slog.String("key", "DISCORD_PUBLIC_KEY"), slog.String("hex", discordPublicKey), slog.Int("len", len(DiscordPublicKey)))
 	}
 
 	DiscordApplicationId = os.Getenv("DISCORD_APPLICATION_ID")
@@ -66,8 +70,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	DiscordOauthSecret = os.Getenv("DISCORD_OAUTH_SECRET")
-	if DiscordOauthSecret == "" {
+	DiscordOAuthSecret = os.Getenv("DISCORD_OAUTH_SECRET")
+	if DiscordOAuthSecret == "" {
 		slog.Error("missing env variable", utils.Tag("invalid_env"), slog.String("key", "DISCORD_OAUTH_SECRET"))
 		os.Exit(1)
 	}
@@ -133,69 +137,82 @@ func handleHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to unmarshal json", http.StatusInternalServerError)
 		return
 	}
+	log := slog.With(slog.String("id", interaction.ID))
 
 	switch interaction.Type {
 	case discordgo.InteractionPing:
 		if writeJSONString(w, InteractionResponsePongJSON) {
-			slog.Info("responding to ping", utils.Tag("pong"), slog.String("ip", getIP(r)))
+			log.Info("responding to ping", utils.Tag("pong"), slog.String("ip", getIP(r)))
 		}
 
 	case discordgo.InteractionApplicationCommand:
 		data := interaction.Data.(discordgo.ApplicationCommandInteractionData)
-		slog.Info("application command executed", utils.Tag("command_executed"), slog.String("command", data.Name), slog.String("user", interaction.Member.User.ID))
-		if cmd, ok := kubernetes.CommandMap[data.Name]; ok {
-			addr := kubernetes.GetServiceAddr(r.Context(), cmd.Spec.ServiceName)
-			if addr == "" {
-				slog.Error("failed to get service address", utils.Tag("failed_get_service_address"), slog.String("command", data.Name), slog.String("user", interaction.Member.User.ID), slog.String("body", string(body)))
-
-				writeMessage(w, MissingServiceMessage)
-				return
-			}
-
-			req := r.Clone(context.Background())
-			req.URL.Scheme = "http"
-			req.URL.Host = addr
-			req.URL.Path = "/"
-			req.Body = io.NopCloser(bytes.NewReader(body))
-			req.RequestURI = ""
-
-			var shouldDefer bool
-			shouldDefer = cmd.Spec.ShouldSendDeferred
-			if shouldDefer {
-				writeJSONString(w, InteractionResponseDeferredChannelMessageWithSourceJSON)
-				go handleApplicationCommand(w, req, shouldDefer, data, interaction, addr, body)
-				return
-			}
-			handleApplicationCommand(w, req, shouldDefer, data, interaction, addr, body)
-		} else {
-			slog.Error("missing handler for command", utils.Tag("unknown_command"), slog.String("command", data.Name), slog.String("user", interaction.Member.User.ID), slog.String("body", string(body)))
+		log = log.With(
+			slog.String("command", data.Name),
+			slog.String("user", interaction.Member.User.ID),
+			slog.String("guild", interaction.GuildID),
+			slog.String("channel", interaction.ChannelID),
+		)
+		log.Info("application command interaction received", utils.Tag("command_received"))
+		var cmd *powergridv10.Command
+		cmd, err = kubernetes.GetCommand(data.Name)
+		if err != nil {
+			log.Error("failed to get handler for command", utils.Tag("unknown_command"), utils.Error(err), slog.String("body", string(body)))
 			writeMessage(w, MissingHandlerMessage)
 			return
 		}
+
+		addr := kubernetes.GetServiceAddr(r.Context(), cmd.Spec.ServiceName)
+		if addr == "" {
+			log.Error("failed to get service address", utils.Tag("failed_get_service_address"))
+
+			writeMessage(w, MissingServiceMessage)
+			return
+		}
+
+		log = log.With(slog.String("addr", addr))
+
+		req := r.Clone(context.Background())
+		req.URL.Scheme = "http"
+		req.URL.Host = addr
+		req.URL.Path = "/"
+		req.Body = io.NopCloser(bytes.NewReader(body))
+		req.RequestURI = ""
+
+		var shouldDefer bool
+		shouldDefer = cmd.Spec.ShouldSendDeferred
+		if shouldDefer {
+			writeJSONString(w, InteractionResponseDeferredChannelMessageWithSourceJSON)
+			go forwardApplicationCommand(log, w, req, shouldDefer, addr, body)
+			return
+		}
+		forwardApplicationCommand(log, w, req, shouldDefer, addr, body)
 	}
 }
 
-func handleApplicationCommand(w http.ResponseWriter, req *http.Request, shouldDefer bool, data discordgo.ApplicationCommandInteractionData, interaction *discordgo.Interaction, addr string, body []byte) {
+func forwardApplicationCommand(log *slog.Logger, w http.ResponseWriter, req *http.Request, shouldDefer bool, addr string, body []byte) {
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
-		slog.Error("failed to forward request", utils.Tag("failed_forward_request"), utils.Error(err), slog.String("body", string(body)))
+		log.Error("failed to forward request", utils.Tag("failed_forward_request"), utils.Error(err), slog.String("body", string(body)))
 		if !shouldDefer {
 			writeMessage(w, ForwardFailedMessage)
 		}
 		return
 	}
+	log = log.With(
+		slog.Int("status", res.StatusCode),
+		slog.String("status_text", res.Status),
+	)
 	if res.StatusCode != http.StatusOK {
-		slog.Error("upstream returned error",
-			utils.Tag("upstream_error"),
-			slog.Int("status", res.StatusCode),
-			slog.String("status_text", res.Status),
-			slog.String("command", data.Name),
-			slog.String("user", interaction.Member.User.ID),
-			slog.String("addr", addr),
+		log.Error("downstream returned error",
+			utils.Tag("downstream_error"),
 			slog.String("body", string(body)),
-			slog.String("response", fmt.Sprint(io.ReadAll(req.Body))))
+			slog.String("response", fmt.Sprint(io.ReadAll(req.Body))),
+		)
 		if !shouldDefer {
 			writeMessage(w, fmt.Sprintf(UpstreamErrorMessage, res.StatusCode, res.Status))
+		} else {
+			// TODO: update deferred with error message
 		}
 		return
 	}
@@ -206,21 +223,12 @@ func handleApplicationCommand(w http.ResponseWriter, req *http.Request, shouldDe
 		_, err = io.Copy(w, res.Body)
 
 		if err != nil {
-			slog.Error("failed to copy response body", utils.Tag("failed_write_body"), utils.Error(err), slog.String("body", string(body)))
+			log.Error("failed to copy response body", utils.Tag("failed_write_body"), utils.Error(err), slog.String("body", string(body)))
 			return
 		}
 	}
 
-	slog.Info("handled command",
-		utils.Tag("command_executed"),
-		slog.String("command", data.Name),
-		slog.String("id", interaction.ID),
-		slog.String("user", interaction.Member.User.ID),
-		slog.String("guild", interaction.GuildID),
-		slog.String("channel", interaction.ChannelID),
-		slog.String("addr", addr),
-		slog.Int("status", res.StatusCode),
-		slog.Bool("deferred", shouldDefer))
+	log.Info("handled command", utils.Tag("command_executed"), slog.Bool("deferred", shouldDefer))
 	return
 }
 

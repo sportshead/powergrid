@@ -49,4 +49,5 @@ func Init() {
 		slog.String("host", config.Host))
 
 	go loadCommands()
+	go loadServices()
 }

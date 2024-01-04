@@ -162,7 +162,7 @@ func handleHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		addr := kubernetes.GetServiceAddr(r.Context(), cmd.Spec.ServiceName)
+		addr := kubernetes.GetServiceAddr(log, cmd.Spec.ServiceName)
 		if addr == "" {
 			log.Error("failed to get service address", utils.Tag("failed_get_service_address"))
 

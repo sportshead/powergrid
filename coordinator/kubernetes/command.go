@@ -14,7 +14,7 @@ import (
 
 const ByName = "DiscordCommandNameIndexer"
 
-var CommandInformer cache.SharedIndexInformer
+var commandInformer cache.SharedIndexInformer
 
 type commandObject struct {
 	Name string `json:"name"`
@@ -22,8 +22,8 @@ type commandObject struct {
 
 func loadCommands() {
 	factory := informers.NewSharedInformerFactoryWithOptions(powergridClient, 10*time.Minute, informers.WithNamespace(namespace))
-	CommandInformer = factory.Powergrid().V10().Commands().Informer()
-	err := CommandInformer.AddIndexers(map[string]cache.IndexFunc{
+	commandInformer = factory.Powergrid().V10().Commands().Informer()
+	err := commandInformer.AddIndexers(map[string]cache.IndexFunc{
 		ByName: func(obj interface{}) ([]string, error) {
 			index := make([]string, 1)
 			command := obj.(*powergridv10.Command)
@@ -50,7 +50,7 @@ func loadCommands() {
 }
 
 func GetCommand(name string) (*powergridv10.Command, error) {
-	commands, err := CommandInformer.GetIndexer().ByIndex(ByName, name)
+	commands, err := commandInformer.GetIndexer().ByIndex(ByName, name)
 	if err != nil {
 		return nil, err
 	}

@@ -1,29 +1,55 @@
 package kubernetes
 
 import (
-	"context"
 	"github.com/sportshead/powergrid/coordinator/utils"
-	"k8s.io/apimachinery/pkg/apis/meta/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/tools/cache"
 	"log/slog"
 	"net"
 	"strconv"
+	"time"
 )
 
-func GetServiceAddr(ctx context.Context, serviceName string) string {
-	service, err := kubernetesClient.CoreV1().Services(namespace).Get(ctx, serviceName, v1.GetOptions{})
+var serviceInformer cache.SharedIndexInformer
+
+func loadServices() {
+	factory := informers.NewSharedInformerFactoryWithOptions(kubernetesClient, 10*time.Minute, informers.WithNamespace(namespace))
+	serviceInformer = factory.Core().V1().Services().Informer()
+
+	stopCh := make(chan struct{})
+	factory.Start(stopCh)            // start goroutines
+	factory.WaitForCacheSync(stopCh) // wait for init
+}
+
+func GetServiceAddr(log *slog.Logger, serviceName string) string {
+	log = log.With(slog.String("name", serviceName))
+	svc, exists, err := serviceInformer.GetIndexer().GetByKey(namespace + "/" + serviceName)
 	if err != nil {
-		slog.Error("failed to get service", utils.Tag("k8s_service_get_failed"), utils.Error(err))
+		log.Error("failed to get service", utils.Tag("k8s_service_get_failed"), utils.Error(err))
+		return ""
+	}
+	if !exists {
+		log.Error("service does not exist", utils.Tag("k8s_service_missing"))
+		return ""
+	}
+
+	log = log.With(slog.String("object", utils.TryMarshal(svc)))
+	service, ok := svc.(*corev1.Service)
+	if !ok {
+		log.Error("failed to cast service", utils.Tag("k8s_service_cast_failed"))
 		return ""
 	}
 
 	ip := service.Spec.ClusterIP
 	if ip == "" || ip == "None" {
-		slog.Error("service has no clusterIP", utils.Tag("k8s_service_missing_cluster_ip"), slog.String("name", serviceName), slog.String("object", utils.TryMarshal(service)))
+		log.Error("service has no clusterIP", utils.Tag("k8s_service_missing_cluster_ip"))
 		return ""
 	}
 
 	ports := service.Spec.Ports
 	port := ""
+	// get http port, otherwise first port
 	for _, p := range ports {
 		if port == "" || p.Name == "http" {
 			port = strconv.Itoa(int(p.Port))
@@ -31,7 +57,7 @@ func GetServiceAddr(ctx context.Context, serviceName string) string {
 		}
 	}
 	if port == "" {
-		slog.Error("service has no http port", utils.Tag("k8s_service_missing_http_port"), slog.String("name", serviceName), slog.String("object", utils.TryMarshal(service)))
+		log.Error("service has no http port", utils.Tag("k8s_service_missing_http_port"))
 		return ""
 	}
 

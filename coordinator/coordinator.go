@@ -95,7 +95,7 @@ const (
 	MissingHandlerMessage = "**Error**: Unknown command"
 	MissingServiceMessage = "**Error**: Failed to get service address"
 	ForwardFailedMessage  = "**Error**: Failed to forward request"
-	UpstreamErrorMessage  = "**Error**: Upstream returned error `%d %s`"
+	UpstreamErrorMessage  = "**Error**: Upstream server returned error `%d %s`"
 )
 
 const (
@@ -204,8 +204,8 @@ func forwardApplicationCommand(log *slog.Logger, w http.ResponseWriter, req *htt
 		slog.String("status_text", res.Status),
 	)
 	if res.StatusCode != http.StatusOK {
-		log.Error("downstream returned error",
-			utils.Tag("downstream_error"),
+		log.Error("upstream returned error",
+			utils.Tag("upstream_error"),
 			slog.String("body", string(body)),
 			slog.String("response", fmt.Sprint(io.ReadAll(req.Body))),
 		)

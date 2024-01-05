@@ -39,6 +39,9 @@ spec:
           envFrom:
             - secretRef:
                 name: "{{ include "powergrid.fullname" . }}-discord"
+          env:
+            - name: DEPLOYMENT_NAME
+              value: "{{ include "powergrid.fullname" . }}"
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}

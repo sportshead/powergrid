@@ -3,10 +3,10 @@ package main
 import (
 	"bytes"
 	"context"
-	"crypto/ed25519"
-	"encoding/hex"
 	"fmt"
 	"github.com/bwmarrin/discordgo"
+	"github.com/sportshead/powergrid/coordinator/discord"
+	"github.com/sportshead/powergrid/coordinator/env"
 	"github.com/sportshead/powergrid/coordinator/kubernetes"
 	powergridv10 "github.com/sportshead/powergrid/coordinator/pkg/apis/powergrid.sportshead.dev/v10"
 	"github.com/sportshead/powergrid/coordinator/utils"
@@ -17,65 +17,24 @@ import (
 	"os"
 )
 
-// DISCORD_PUBLIC_KEY
-var DiscordPublicKey ed25519.PublicKey
-
-// DISCORD_APPLICATION_ID
-var DiscordApplicationId string
-
-// DISCORD_BOT_TOKEN
-var DiscordBotToken string
-
-// DISCORD_OAUTH_SECRET
-var DiscordOAuthSecret string
-
 // replaced at build time
 var BuildCommitHash = "dev"
 var serverHeader = "coordinator/" + BuildCommitHash
 
 const JSONMimeType = "application/json"
 
-func main() {
+func init() {
 	if BuildCommitHash == "dev" {
 		slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})))
 	} else {
 		slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, nil)))
 	}
+}
+
+func main() {
 	slog.Info("starting coordinator", utils.Tag("start"), slog.String("hash", BuildCommitHash))
 
-	discordPublicKey := os.Getenv("DISCORD_PUBLIC_KEY")
-	if discordPublicKey == "" {
-		slog.Error("missing env variable", utils.Tag("invalid_env"), slog.String("key", "DISCORD_PUBLIC_KEY"))
-		os.Exit(1)
-	}
-	var err error
-	DiscordPublicKey, err = hex.DecodeString(discordPublicKey)
-	if err != nil {
-		slog.Error("failed to parse hex", utils.Tag("invalid_env"), utils.Error(err), slog.String("key", "DISCORD_PUBLIC_KEY"), slog.String("hex", discordPublicKey))
-		os.Exit(1)
-	}
-	if len(DiscordPublicKey) != ed25519.PublicKeySize {
-		slog.Error("invalid public key length", utils.Tag("invalid_env"), slog.String("key", "DISCORD_PUBLIC_KEY"), slog.String("hex", discordPublicKey), slog.Int("len", len(DiscordPublicKey)))
-	}
-
-	DiscordApplicationId = os.Getenv("DISCORD_APPLICATION_ID")
-	if DiscordApplicationId == "" {
-		slog.Error("missing env variable", utils.Tag("invalid_env"), slog.String("key", "DISCORD_APPLICATION_ID"))
-		os.Exit(1)
-	}
-
-	DiscordBotToken = os.Getenv("DISCORD_BOT_TOKEN")
-	if DiscordBotToken == "" {
-		slog.Error("missing env variable", utils.Tag("invalid_env"), slog.String("key", "DISCORD_BOT_TOKEN"))
-		os.Exit(1)
-	}
-
-	DiscordOAuthSecret = os.Getenv("DISCORD_OAUTH_SECRET")
-	if DiscordOAuthSecret == "" {
-		slog.Error("missing env variable", utils.Tag("invalid_env"), slog.String("key", "DISCORD_OAUTH_SECRET"))
-		os.Exit(1)
-	}
-
+	discord.Init()
 	kubernetes.Init()
 
 	server := http.NewServeMux()
@@ -86,7 +45,7 @@ func main() {
 	})
 
 	slog.Info("public http server listening", utils.Tag("http_listen"), slog.String("addr", "0.0.0.0:8000"))
-	err = http.ListenAndServe("0.0.0.0:8000", server)
+	err := http.ListenAndServe("0.0.0.0:8000", server)
 	slog.Error("public http server died", utils.Tag("http_died"), utils.Error(err))
 	os.Exit(1)
 }
@@ -95,7 +54,7 @@ const (
 	MissingHandlerMessage = "**Error**: Unknown command"
 	MissingServiceMessage = "**Error**: Failed to get service address"
 	ForwardFailedMessage  = "**Error**: Failed to forward request"
-	UpstreamErrorMessage  = "**Error**: Upstream server returned error `%d %s`"
+	UpstreamErrorMessage  = "**Error**: Upstream server returned error `%d`: `%s`"
 )
 
 const (
@@ -118,7 +77,7 @@ func handleHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if !discordgo.VerifyInteraction(r, DiscordPublicKey) {
+	if !discordgo.VerifyInteraction(r, env.DiscordPublicKey) {
 		http.Error(w, "invalid signature", http.StatusUnauthorized)
 		return
 	}

@@ -110,3 +110,6 @@ secrets:
   DISCORD_PUBLIC_KEY: ""
   DISCORD_BOT_TOKEN: ""
   DISCORD_OAUTH_SECRET: ""
+  # guild id to register commands to
+  # set to blank for global
+  DISCORD_GUILD_ID: ""

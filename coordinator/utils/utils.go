@@ -17,3 +17,8 @@ func TryMarshal(obj any) string {
 
 	return fmt.Sprintf("%#v", obj)
 }
+
+// https://stackoverflow.com/a/30716481
+func Ptr[T any](v T) *T {
+	return &v
+}

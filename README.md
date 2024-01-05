@@ -25,7 +25,7 @@ $ kubectl rollout restart deployment/powergrid # discover new CRD changes
   - [ ] discord.py
 - [x] `shouldSendDeferred` option in `PowergridCommand` CRD
 - [x] use typed kubernetes client in coordinator
-- [ ] watch for k8s `PowergridCommand` CRD changes
-  - [ ] reconcile changes with Discord
-  - [ ] support guild commands for development
+- [x] watch for k8s `PowergridCommand` CRD changes
+  - [x] reconcile changes with Discord
+  - [x] support guild commands for development
 - [ ] interaction routing - prefix style (`bun/*`) in a CRD/annotation?

@@ -1,14 +1,17 @@
 package kubernetes
 
 import (
+	"github.com/go-logr/logr"
 	clientset "github.com/sportshead/powergrid/coordinator/pkg/generated/clientset/versioned"
 	"github.com/sportshead/powergrid/coordinator/utils"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/klog/v2"
 	"log/slog"
 	"os"
 	"strings"
+	"sync"
 )
 
 var config *rest.Config
@@ -17,7 +20,17 @@ var powergridClient *clientset.Clientset
 var kubernetesClient *kubernetes.Clientset
 var namespace = corev1.NamespaceDefault
 
-func Init() {
+var stop <-chan struct{}
+var cleanupGroup *sync.WaitGroup
+
+func init() {
+	klog.SetLogger(logr.Discard())
+}
+
+func Init(ch <-chan struct{}, w *sync.WaitGroup) {
+	stop = ch
+	cleanupGroup = w
+
 	var err error
 
 	config, err = rest.InClusterConfig()

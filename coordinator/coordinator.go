@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"github.com/bwmarrin/discordgo"
 	"github.com/sportshead/powergrid/coordinator/discord"
@@ -15,13 +16,20 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"sync"
+	"syscall"
+	"time"
 )
 
-// replaced at build time
+// BuildCommitHash is the latest git commit, and is replaced at build time by CI.
 var BuildCommitHash = "dev"
 var serverHeader = "coordinator/" + BuildCommitHash
 
 const JSONMimeType = "application/json"
+
+var stop = make(chan struct{})
+var cleanupGroup = &sync.WaitGroup{}
 
 func init() {
 	if BuildCommitHash == "dev" {
@@ -35,19 +43,60 @@ func main() {
 	slog.Info("starting coordinator", utils.Tag("start"), slog.String("hash", BuildCommitHash))
 
 	discord.Init()
-	kubernetes.Init()
+	kubernetes.Init(stop, cleanupGroup)
 
-	server := http.NewServeMux()
-	server.HandleFunc("/", handleHTTP)
-	server.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+	serveMux := http.NewServeMux()
+	serveMux.HandleFunc("/", handleHTTP)
+	serveMux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok\nrunning " + BuildCommitHash))
 	})
 
-	slog.Info("public http server listening", utils.Tag("http_listen"), slog.String("addr", "0.0.0.0:8000"))
-	err := http.ListenAndServe("0.0.0.0:8000", server)
-	slog.Error("public http server died", utils.Tag("http_died"), utils.Error(err))
-	os.Exit(1)
+	server := &http.Server{
+		Addr:    "0.0.0.0:8000",
+		Handler: serveMux,
+	}
+
+	cleanupGroup.Add(1)
+	go func() {
+		defer cleanupGroup.Done()
+		if err := server.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
+			slog.Error("http server died", utils.Tag("http_died"), utils.Error(err))
+			os.Exit(1)
+		}
+	}()
+	slog.Info("http server listening", utils.Tag("http_listen"), slog.String("addr", server.Addr))
+
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
+
+	<-ch
+	slog.Info("gracefully stopping coordinator", utils.Tag("stopping"))
+	close(stop)
+
+	if !waitTimeout(cleanupGroup, 10*time.Second) {
+		slog.Error("cleanup timed out", utils.Tag("cleanup_timeout"))
+		os.Exit(1)
+	} else {
+		slog.Info("stopped coordinator", utils.Tag("stopped"))
+	}
+}
+
+// waitTimeout waits for the waitgroup for the specified max timeout.
+// Returns true if waiting timed out.
+// https://stackoverflow.com/a/32843750
+func waitTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
+	c := make(chan struct{})
+	go func() {
+		defer close(c)
+		wg.Wait()
+	}()
+	select {
+	case <-c:
+		return false // completed normally
+	case <-time.After(timeout):
+		return true // timed out
+	}
 }
 
 const (

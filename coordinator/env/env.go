@@ -20,11 +20,16 @@ var DiscordBotToken string
 // DISCORD_OAUTH_SECRET
 var DiscordOAuthSecret string
 
-// DEPLOYMENT_NAME
-var DeploymentName string
-
 // DISCORD_GUID_ID
 var DiscordGuildID string
+
+// DeploymentName is the name of the current deployment, used as the name of the leader election lease.
+// Passed in as the DEPLOYMENT_NAME env var.
+var DeploymentName string
+
+// Hostname is the name of the current pod, used for identification in leader election.
+// Passed in as the HOSTNAME env var.
+var Hostname string
 
 func init() {
 	discordPublicKey := os.Getenv("DISCORD_PUBLIC_KEY")
@@ -66,6 +71,12 @@ func init() {
 	DeploymentName = os.Getenv("DEPLOYMENT_NAME")
 	if DeploymentName == "" {
 		slog.Error("missing env variable", utils.Tag("invalid_env"), slog.String("key", "DEPLOYMENT_NAME"))
+		os.Exit(1)
+	}
+
+	Hostname = os.Getenv("HOSTNAME")
+	if Hostname == "" {
+		slog.Error("missing env variable", utils.Tag("invalid_env"), slog.String("key", "HOSTNAME"))
 		os.Exit(1)
 	}
 }

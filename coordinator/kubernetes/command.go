@@ -1,13 +1,13 @@
 package kubernetes
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/sportshead/powergrid/coordinator/discord"
 	powergridv10 "github.com/sportshead/powergrid/coordinator/pkg/apis/powergrid.sportshead.dev/v10"
 	informers "github.com/sportshead/powergrid/coordinator/pkg/generated/informers/externalversions"
 	"github.com/sportshead/powergrid/coordinator/utils"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
 	"log/slog"
 	"os"
@@ -22,10 +22,10 @@ type commandObject struct {
 	Name string `json:"name"`
 }
 
-func updateCommands() {
+func updateCommands(ctx context.Context) {
 	list := commandInformer.GetStore().List()
 
-	discord.UpdateCommands(list)
+	discord.UpdateCommands(ctx, list)
 }
 
 func loadCommands() {
@@ -52,11 +52,10 @@ func loadCommands() {
 		os.Exit(1)
 	}
 
-	stopCh := make(chan struct{})
-	factory.Start(stopCh)            // start goroutines
-	factory.WaitForCacheSync(stopCh) // wait for init
+	factory.Start(stop)            // start goroutines
+	factory.WaitForCacheSync(stop) // wait for init
 
-	wait.Until(updateCommands, 1*time.Minute, wait.NeverStop)
+	startLeader()
 }
 
 func GetCommand(name string) (*powergridv10.Command, error) {

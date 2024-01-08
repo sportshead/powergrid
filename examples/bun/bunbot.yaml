@@ -3,7 +3,6 @@ kind: Deployment
 metadata:
   name: bunbot
 spec:
-  replicas: 3
   selector:
     matchLabels:
       app.kubernetes.io/name: bunbot
@@ -14,7 +13,7 @@ spec:
     spec:
       containers:
         - name: bot
-          image: ghcr.io/sportshead/powergrid-examples-bunbot:0.1.1
+          image: ghcr.io/sportshead/powergrid-examples-bunbot:0.2.1
           ports:
             - name: http
               containerPort: 3000
@@ -25,6 +24,32 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 1
             failureThreshold: 3
+          resources:
+            requests:
+              cpu: "15m"
+              memory: "48Mi"
+            limits:
+              cpu: "30m"
+              memory: "96Mi"
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: bunbot
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: bunbot
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
 ---
 apiVersion: v1
 kind: Service

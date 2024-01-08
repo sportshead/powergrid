@@ -46,8 +46,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             GIT_HASH=${{ github.sha }}
-  bunbot:
-    name: Build examples/bunbot
+  bun:
+    name: Build examples/bun
     runs-on: ubuntu-latest
     steps:
       - name: Set up QEMU
@@ -59,7 +59,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ghcr.io/sportshead/powergrid-examples-bunbot
+            ghcr.io/sportshead/powergrid-examples-bun
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}

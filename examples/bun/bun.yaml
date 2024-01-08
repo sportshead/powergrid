@@ -1,19 +1,19 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: bunbot
+  name: bun
 spec:
   selector:
     matchLabels:
-      app.kubernetes.io/name: bunbot
+      app.kubernetes.io/name: bun
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: bunbot
+        app.kubernetes.io/name: bun
     spec:
       containers:
         - name: bot
-          image: ghcr.io/sportshead/powergrid-examples-bunbot:0.2.1
+          image: ghcr.io/sportshead/powergrid-examples-bun:0.2.1
           ports:
             - name: http
               containerPort: 3000
@@ -35,12 +35,12 @@ spec:
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: bunbot
+  name: bun
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: bunbot
+    name: bun
   minReplicas: 1
   maxReplicas: 5
   metrics:
@@ -54,11 +54,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: bunbot
+  name: bun
 spec:
   type: ClusterIP
   selector:
-    app.kubernetes.io/name: bunbot
+    app.kubernetes.io/name: bun
   ports:
     - port: 80
       targetPort: http
@@ -69,7 +69,7 @@ kind: Command
 metadata:
   name: pingjs
 spec:
-  serviceName: bunbot
+  serviceName: bun
   command:
     name: pingjs
     description: Say hello to JavaScript!
@@ -84,7 +84,7 @@ kind: Command
 metadata:
   name: sleep
 spec:
-  serviceName: bunbot
+  serviceName: bun
   shouldSendDeferred: true
   command:
     name: sleep

@@ -3,14 +3,17 @@ FROM oven/bun:1-alpine as base
 # install dependencies into temp directory
 # this will cache them and speed up future builds
 FROM base AS builder
-WORKDIR /app
-RUN --mount=type=cache,target=~/.bun/install/cache \
+
+RUN --mount=type=cache,target=/root/.bun/install/cache \
     --mount=type=bind,source=package.json,target=package.json \
     --mount=type=bind,source=bun.lockb,target=bun.lockb \
     bun install --frozen-lockfile --production
 
-RUN --mount=type=bind,source=.,target=. \
-    bun build ./bot.ts --target=bun --outfile=/bot.js
+RUN --mount=type=cache,target=/root/.bun/install/cache \
+    --mount=type=bind,source=package.json,target=package.json \
+    --mount=type=bind,source=bun.lockb,target=bun.lockb \
+    --mount=type=bind,source=.,target=src \
+    bun build src/bot.ts --target=bun --outfile=/bot.js
 
 # copy production dependencies and source code into final image
 FROM base AS release
@@ -21,12 +24,13 @@ LABEL org.opencontainers.image.title="Bun Example Bot"
 LABEL org.opencontainers.image.description="Example discord bot using Bun to demonstrate Powergrid"
 
 WORKDIR /
+
 RUN apk --no-cache add ca-certificates \
-  && update-ca-certificates
+    && update-ca-certificates
 
 COPY --from=builder /bot.js /bot.js
 
-# run the app
 USER bun
+
 EXPOSE 3000/tcp
 ENTRYPOINT [ "bun", "run", "/bot.js" ]

@@ -4,6 +4,8 @@ import {
 } from "discord-api-types/v10";
 import { AutocompleteHandler, CommandHandler, getOption } from "../common.ts";
 
+const USER_AGENT = `ExampleBunBot/0.2.2 (https://github.com/sportshead/powergrid; powergrid@sportshead.dev) bun/${Bun.version}`;
+
 const getWikiPage = async (
     title: string,
 ): Promise<{
@@ -27,6 +29,11 @@ const getWikiPage = async (
         );
         res = await fetch(
             `https://en.wikipedia.org/api/rest_v1/page/summary/${title}`,
+            {
+                headers: {
+                    "User-Agent": USER_AGENT
+                }
+            }
         );
         title = res.headers.get("Location") ?? "";
     } while (res.status === 301 || res.status === 302);
@@ -86,6 +93,11 @@ export const wikiAutocompleteHandler: AutocompleteHandler = async (
         `https://api.wikimedia.org/core/v1/wikipedia/en/search/page?q=${encodeURIComponent(
             query,
         )}&limit=25`,
+        {
+            headers: {
+                "User-Agent": USER_AGENT
+            }
+        }
     ).then((r) => r.json());
 
     const res: APIInteractionResponse = {

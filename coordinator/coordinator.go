@@ -153,7 +153,7 @@ func handleHTTP(w http.ResponseWriter, r *http.Request) {
 			log.Info("responding to ping", utils.Tag("pong"), slog.String("ip", getIP(r)))
 		}
 
-	case discordgo.InteractionApplicationCommand:
+	case discordgo.InteractionApplicationCommand, discordgo.InteractionApplicationCommandAutocomplete:
 		data := interaction.Data.(discordgo.ApplicationCommandInteractionData)
 		log = log.With(
 			slog.String("command", data.Name),
@@ -188,7 +188,7 @@ func handleHTTP(w http.ResponseWriter, r *http.Request) {
 		req.RequestURI = ""
 
 		var shouldDefer bool
-		shouldDefer = cmd.Spec.ShouldSendDeferred
+		shouldDefer = cmd.Spec.ShouldSendDeferred && interaction.Type != discordgo.InteractionApplicationCommandAutocomplete
 		if shouldDefer {
 			writeJSONString(w, InteractionResponseDeferredChannelMessageWithSourceJSON)
 			go forwardApplicationCommand(log, w, req, shouldDefer, addr, body)

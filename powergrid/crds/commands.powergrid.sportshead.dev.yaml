@@ -69,6 +69,7 @@ spec:
                         properties:
                           type:
                             type: integer
+                            description: "See https://discord.com/developers/docs/interactions/application-commands#application-command-object-application-command-option-type"
                             enum: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
                           name:
                             type: string
@@ -130,7 +131,7 @@ spec:
                             type: array
                             items:
                               type: integer
-                              enum: [ 0, 1, 2, 3, 4, 5, 10, 11, 12, 13, 14, 15 ]
+                              enum: [0, 1, 2, 3, 4, 5, 10, 11, 12, 13, 14, 15]
                           # sub-options are copy/pasted because yaml does not allow nesting of aliases
                           options:
                             type: array
@@ -139,7 +140,8 @@ spec:
                               properties:
                                 type:
                                   type: integer
-                                  enum: [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 ]
+                                  description: "See https://discord.com/developers/docs/interactions/application-commands#application-command-object-application-command-option-type"
+                                  enum: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
                                 name:
                                   type: string
                                   minLength: 1
@@ -200,7 +202,8 @@ spec:
                                   type: array
                                   items:
                                     type: integer
-                                    enum: [ 0, 1, 2, 3, 4, 5, 10, 11, 12, 13, 14, 15 ]
+                                    enum:
+                                      [0, 1, 2, 3, 4, 5, 10, 11, 12, 13, 14, 15]
                               required:
                                 - type
                                 - name

@@ -13,7 +13,7 @@ spec:
     spec:
       containers:
         - name: bot
-          image: ghcr.io/sportshead/powergrid-examples-bun:0.2.1
+          image: ghcr.io/sportshead/powergrid-examples-bun:0.2.2
           ports:
             - name: http
               containerPort: 3000
@@ -96,3 +96,19 @@ spec:
         min_value: 0
         max_value: 60000 # 1 minute
         required: false
+---
+apiVersion: powergrid.sportshead.dev/v10
+kind: Command
+metadata:
+  name: wiki
+spec:
+  serviceName: bun
+  command:
+    name: wiki
+    description: Read the contents of an article on the English Wikipedia
+    options:
+      - name: title
+        description: "Title of the page to read"
+        type: 3
+        autocomplete: true
+        required: true

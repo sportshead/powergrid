@@ -9,10 +9,10 @@ RUN --mount=type=cache,target=/root/.bun/install/cache \
     --mount=type=bind,source=bun.lockb,target=bun.lockb \
     bun install --frozen-lockfile --production
 
+COPY . src/
 RUN --mount=type=cache,target=/root/.bun/install/cache \
     --mount=type=bind,source=package.json,target=package.json \
     --mount=type=bind,source=bun.lockb,target=bun.lockb \
-    --mount=type=bind,source=.,target=src \
     bun build src/bot.ts --target=bun --outfile=/bot.js
 
 # copy production dependencies and source code into final image

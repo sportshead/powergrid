@@ -112,3 +112,23 @@ spec:
         type: 3
         autocomplete: true
         required: true
+---
+apiVersion: powergrid.sportshead.dev/v10
+kind: Command
+metadata:
+  name: counter
+spec:
+  serviceName: bun
+  command:
+    name: counter
+    description: Create a counter
+    options:
+      - name: name
+        description: "Name of the counter"
+        type: 3
+        required: false
+        max_length: 32
+      - name: value
+        description: "Initial state of the counter"
+        type: 4
+        required: false

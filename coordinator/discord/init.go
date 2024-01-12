@@ -8,10 +8,10 @@ import (
 	"os"
 )
 
-// session is a discordgo session for use with the Discord REST API.
+// Session is a discordgo session for use with the Discord REST API.
 // !! DO NOT CALL .Open() !!
 // Gateway connection is handled in powergrid/gateway, not in powergrid/coordinator
-var session *discordgo.Session
+var Session *discordgo.Session
 
 func Init() {
 	var err error
@@ -21,7 +21,7 @@ func Init() {
 		token = "Bot " + token
 	}
 
-	session, err = discordgo.New(token)
+	Session, err = discordgo.New(token)
 	if err != nil {
 		slog.Error("failed to create discord session", utils.Tag("discord_session_failed"), utils.Error(err))
 		os.Exit(1)

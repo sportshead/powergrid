@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -180,28 +181,76 @@ func handleHTTP(w http.ResponseWriter, r *http.Request) {
 
 		log = log.With(slog.String("addr", addr))
 
-		req := r.Clone(context.Background())
-		req.URL.Scheme = "http"
-		req.URL.Host = addr
-		req.URL.Path = "/"
-		req.Body = io.NopCloser(bytes.NewReader(body))
-		req.RequestURI = ""
+		req := makeRequest(r, addr, body)
 
 		var shouldDefer bool
 		shouldDefer = cmd.Spec.ShouldSendDeferred && interaction.Type != discordgo.InteractionApplicationCommandAutocomplete
+		log = log.With(slog.Bool("deferred", shouldDefer))
 		if shouldDefer {
 			writeJSONString(w, InteractionResponseDeferredChannelMessageWithSourceJSON)
-			go forwardApplicationCommand(log, w, req, shouldDefer, addr, body)
+			go forwardInteraction(log, w, req, shouldDefer, interaction)
 			return
 		}
-		forwardApplicationCommand(log, w, req, shouldDefer, addr, body)
+		forwardInteraction(log, w, req, shouldDefer, interaction)
+
+	case discordgo.InteractionMessageComponent:
+		data := interaction.Data.(discordgo.MessageComponentInteractionData)
+		log = log.With(
+			slog.String("component", data.CustomID),
+			slog.String("user", interaction.Member.User.ID),
+			slog.String("guild", interaction.GuildID),
+			slog.String("channel", interaction.ChannelID),
+		)
+		log.Info("message component interaction received", utils.Tag("component_received"))
+
+		handleMessageOrModal(log, w, r, body, interaction, data.CustomID)
+
+	case discordgo.InteractionModalSubmit:
+		data := interaction.Data.(discordgo.ModalSubmitInteractionData)
+		log = log.With(
+			slog.String("component", data.CustomID),
+			slog.String("user", interaction.Member.User.ID),
+			slog.String("guild", interaction.GuildID),
+			slog.String("channel", interaction.ChannelID),
+		)
+		log.Info("modal submit interaction received", utils.Tag("modal_received"))
+
+		handleMessageOrModal(log, w, r, body, interaction, data.CustomID)
 	}
 }
 
-func forwardApplicationCommand(log *slog.Logger, w http.ResponseWriter, req *http.Request, shouldDefer bool, addr string, body []byte) {
+func handleMessageOrModal(log *slog.Logger, w http.ResponseWriter, r *http.Request, body []byte, interaction *discordgo.Interaction, id string) {
+	service := strings.Split(id, "/")[0]
+	log = log.With(slog.String("service", service))
+
+	addr := kubernetes.GetServiceAddr(log, service)
+	if addr == "" {
+		log.Error("failed to get service address", utils.Tag("failed_get_service_address"))
+
+		writeMessage(w, MissingServiceMessage)
+		return
+	}
+
+	log = log.With(slog.String("addr", addr))
+
+	req := makeRequest(r, addr, body)
+	forwardInteraction(log, w, req, false, interaction)
+}
+
+func makeRequest(r *http.Request, addr string, body []byte) *http.Request {
+	req := r.Clone(context.Background())
+	req.URL.Scheme = "http"
+	req.URL.Host = addr
+	req.URL.Path = "/"
+	req.Body = io.NopCloser(bytes.NewReader(body))
+	req.RequestURI = ""
+	return req
+}
+
+func forwardInteraction(log *slog.Logger, w http.ResponseWriter, req *http.Request, shouldDefer bool, interaction *discordgo.Interaction) {
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
-		log.Error("failed to forward request", utils.Tag("failed_forward_request"), utils.Error(err), slog.String("body", string(body)))
+		log.Error("failed to forward request", utils.Tag("failed_forward_request"), utils.Error(err), slog.String("interaction", utils.TryMarshal(interaction)))
 		if !shouldDefer {
 			writeMessage(w, ForwardFailedMessage)
 		}
@@ -214,29 +263,41 @@ func forwardApplicationCommand(log *slog.Logger, w http.ResponseWriter, req *htt
 	if res.StatusCode != http.StatusOK {
 		log.Error("upstream returned error",
 			utils.Tag("upstream_error"),
-			slog.String("body", string(body)),
+			slog.String("interaction", utils.TryMarshal(interaction)),
 			slog.String("response", fmt.Sprint(io.ReadAll(req.Body))),
 		)
 		if !shouldDefer {
 			writeMessage(w, fmt.Sprintf(UpstreamErrorMessage, res.StatusCode, res.Status))
 		} else {
-			// TODO: update deferred with error message
+			_, err = discord.Session.FollowupMessageCreate(interaction, false, &discordgo.WebhookParams{
+				Content: fmt.Sprintf(UpstreamErrorMessage, res.StatusCode, res.Status),
+			})
+			if err != nil {
+				log.Error("failed to send followup message", utils.Tag("failed_send_followup"), utils.Error(err))
+			}
 		}
 		return
 	}
 
 	if !shouldDefer {
-		w.Header().Set("Content-Type", res.Header.Get("Content-Type"))
+		contentType := res.Header.Get("Content-Type")
+		if contentType == "" {
+			contentType = JSONMimeType
+		}
+		w.Header().Set("Content-Type", contentType)
 		w.WriteHeader(http.StatusOK)
-		_, err = io.Copy(w, res.Body)
+		// _, err = io.Copy(w, res.Body)
+		r := io.TeeReader(res.Body, w)
+		resp, _ := io.ReadAll(r)
+		log.Debug("response", slog.String("ctype", contentType), slog.String("response", string(resp)))
 
 		if err != nil {
-			log.Error("failed to copy response body", utils.Tag("failed_write_body"), utils.Error(err), slog.String("body", string(body)))
+			log.Error("failed to copy response body", utils.Tag("failed_write_body"), utils.Error(err), slog.String("interaction", utils.TryMarshal(interaction)))
 			return
 		}
 	}
 
-	log.Info("handled command", utils.Tag("command_executed"), slog.Bool("deferred", shouldDefer))
+	log.Info("handled interaction", utils.Tag("interaction_handled"))
 	return
 }
 

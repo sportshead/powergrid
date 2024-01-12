@@ -4,6 +4,8 @@ import {
     autocompleteHandlers,
     isAutocomplete,
 } from "./handlers/autocomplete.ts";
+import { executeComponent, isComponent } from "./handlers/component.ts";
+import { executeModal, isModal } from "./handlers/modal.ts";
 
 Bun.serve({
     async fetch(req: Request) {
@@ -30,6 +32,12 @@ Bun.serve({
         }
         if (isAutocomplete(interaction)) {
             return autocompleteHandlers[interaction.data.name](interaction);
+        }
+        if (isComponent(interaction)) {
+            return executeComponent(interaction);
+        }
+        if (isModal(interaction)) {
+            return executeModal(interaction);
         }
 
         console.error(

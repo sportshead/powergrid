@@ -2,7 +2,12 @@ import {
     APIInteractionResponse,
     InteractionResponseType,
 } from "discord-api-types/v10";
-import { AutocompleteHandler, CommandHandler, getOption } from "../common.ts";
+import {
+    AutocompleteHandler,
+    CommandHandler,
+    getOption,
+    json,
+} from "../common.ts";
 
 const USER_AGENT = `ExampleBunBot/0.2.2 (https://github.com/sportshead/powergrid; powergrid@sportshead.dev) bun/${Bun.version}`;
 
@@ -31,9 +36,9 @@ const getWikiPage = async (
             `https://en.wikipedia.org/api/rest_v1/page/summary/${title}`,
             {
                 headers: {
-                    "User-Agent": USER_AGENT
-                }
-            }
+                    "User-Agent": USER_AGENT,
+                },
+            },
         );
         title = res.headers.get("Location") ?? "";
     } while (res.status === 301 || res.status === 302);
@@ -69,10 +74,7 @@ export const wikiCommandHandler: CommandHandler = async (interaction) => {
         },
     };
 
-    return new Response(JSON.stringify(res), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-    });
+    return json(res);
 };
 export const wikiAutocompleteHandler: AutocompleteHandler = async (
     interaction,
@@ -95,9 +97,9 @@ export const wikiAutocompleteHandler: AutocompleteHandler = async (
         )}&limit=25`,
         {
             headers: {
-                "User-Agent": USER_AGENT
-            }
-        }
+                "User-Agent": USER_AGENT,
+            },
+        },
     ).then((r) => r.json());
 
     const res: APIInteractionResponse = {
@@ -110,8 +112,5 @@ export const wikiAutocompleteHandler: AutocompleteHandler = async (
         },
     };
 
-    return new Response(JSON.stringify(res), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-    });
+    return json(res);
 };

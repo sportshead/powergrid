@@ -7,11 +7,13 @@ import {
     APIInteraction,
     InteractionType,
 } from "discord-api-types/v10";
+import { counterCommandHandler } from "./commands/counter.ts";
 
 export const commandHandlers: Record<string, CommandHandler> = {
     pingjs: pingjsCommandHandler,
     sleep: sleepCommandHandler,
     wiki: wikiCommandHandler,
+    counter: counterCommandHandler,
 };
 export const isApplicationCommand = (
     interaction: APIInteraction,

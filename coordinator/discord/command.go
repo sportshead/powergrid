@@ -23,7 +23,7 @@ func removeFromList(s []interface{}, i int) []interface{} {
 }
 
 func UpdateCommands(ctx context.Context, list []interface{}) {
-	commands, err := session.ApplicationCommands(env.DiscordApplicationID, env.DiscordGuildID, discordgo.WithContext(ctx))
+	commands, err := Session.ApplicationCommands(env.DiscordApplicationID, env.DiscordGuildID, discordgo.WithContext(ctx))
 	if err != nil {
 		slog.Error("failed to get commands", utils.Tag("discord_commands_failed"), utils.Error(err))
 		return
@@ -43,7 +43,7 @@ func UpdateCommands(ctx context.Context, list []interface{}) {
 		})
 
 		if i == -1 {
-			err = session.ApplicationCommandDelete(oldCommand.ApplicationID, oldCommand.GuildID, oldCommand.ID, discordgo.WithContext(ctx))
+			err = Session.ApplicationCommandDelete(oldCommand.ApplicationID, oldCommand.GuildID, oldCommand.ID, discordgo.WithContext(ctx))
 			if err != nil {
 				log.Error("failed to delete command", utils.Tag("discord_command_delete_failed"), utils.Error(err))
 				continue
@@ -75,7 +75,7 @@ func UpdateCommands(ctx context.Context, list []interface{}) {
 
 		if oldCommand.Type != newCommand.Type || !reflect.DeepEqual(oldCommand, newCommand) {
 			var edited *discordgo.ApplicationCommand
-			edited, err = session.ApplicationCommandEdit(oldCommand.ApplicationID, oldCommand.GuildID, oldCommand.ID, newCommand, discordgo.WithContext(ctx))
+			edited, err = Session.ApplicationCommandEdit(oldCommand.ApplicationID, oldCommand.GuildID, oldCommand.ID, newCommand, discordgo.WithContext(ctx))
 			if err != nil {
 				log.Error("failed to edit command", utils.Tag("discord_command_edit_failed"), utils.Error(err))
 				continue
@@ -97,7 +97,7 @@ func UpdateCommands(ctx context.Context, list []interface{}) {
 			continue
 		}
 		var created *discordgo.ApplicationCommand
-		created, err = session.ApplicationCommandCreate(env.DiscordApplicationID, env.DiscordGuildID, newCommand, discordgo.WithContext(ctx))
+		created, err = Session.ApplicationCommandCreate(env.DiscordApplicationID, env.DiscordGuildID, newCommand, discordgo.WithContext(ctx))
 		if err != nil {
 			log.Error("failed to create command", utils.Tag("discord_command_create_failed"), utils.Error(err))
 			continue

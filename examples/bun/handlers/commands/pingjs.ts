@@ -1,4 +1,4 @@
-import { CommandHandler, getOption } from "../common.ts";
+import { CommandHandler, getOption, json } from "../common.ts";
 import {
     APIInteractionResponse,
     InteractionResponseType,
@@ -22,8 +22,5 @@ export const pingjsCommandHandler: CommandHandler = async (interaction) => {
         res,
     );
 
-    return new Response(JSON.stringify(res), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-    });
+    return json(res);
 };

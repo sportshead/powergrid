@@ -28,4 +28,4 @@ $ kubectl rollout restart deployment/powergrid # discover new CRD changes
 - [x] watch for k8s `PowergridCommand` CRD changes
   - [x] reconcile changes with Discord
   - [x] support guild commands for development
-- [ ] interaction routing - prefix style (`bun/*`) in a CRD/annotation?
+- [x] interaction routing - prefix style (`bun/*`) in a CRD/annotation?

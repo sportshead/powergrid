@@ -2,8 +2,18 @@ apiVersion: v1
 entries:
   powergrid:
   - apiVersion: v2
+    appVersion: 0.2.2
+    created: "2024-01-12T19:19:34.112105Z"
+    description: Like nginx, but for Discord bots.
+    digest: d26a4912716e81ccb6a7db7cf091e22ba8eccd061f1f61a858e8f08cb9d24944
+    name: powergrid
+    type: application
+    urls:
+    - https://sportshead.github.io/powergrid/powergrid-0.2.2.tgz
+    version: 0.2.2
+  - apiVersion: v2
     appVersion: 0.2.1
-    created: "2024-01-06T02:58:35.809777+08:00"
+    created: "2024-01-12T19:19:34.111808Z"
     description: Like nginx, but for Discord bots.
     digest: 05d4a44ca98dae182d9f4f1d022cb2cfbfa75e6a797fb2d95fb620699dce1c0c
     name: powergrid
@@ -13,7 +23,7 @@ entries:
     version: 0.2.1
   - apiVersion: v2
     appVersion: 0.2.0
-    created: "2024-01-06T02:58:35.809505+08:00"
+    created: "2024-01-12T19:19:34.111255Z"
     description: Like nginx, but for Discord bots.
     digest: f0af74c80d38f3c89845a376fc82d0cccf52807110453acea5d1241d7830b5c9
     name: powergrid
@@ -23,7 +33,7 @@ entries:
     version: 0.2.0
   - apiVersion: v2
     appVersion: 0.1.1
-    created: "2024-01-06T02:58:35.809066+08:00"
+    created: "2024-01-12T19:19:34.11037Z"
     description: Like nginx, but for Discord bots.
     digest: 428980ee77e7e3f8e1ed635c8ae5b0efa8239cdb30f2b7ed8249e2067bb4aeb9
     name: powergrid
@@ -33,7 +43,7 @@ entries:
     version: 0.1.1
   - apiVersion: v2
     appVersion: 0.1.0
-    created: "2024-01-06T02:58:35.807023+08:00"
+    created: "2024-01-12T19:19:34.109666Z"
     description: Like nginx, but for Discord bots.
     digest: bed2edf5edf2536e87afca3c3119205536e4c9b6632d48ebab7df41c3905bf59
     name: powergrid
@@ -41,4 +51,4 @@ entries:
     urls:
     - https://sportshead.github.io/powergrid/powergrid-0.1.0.tgz
     version: 0.1.0
-generated: "2024-01-06T02:58:35.806197+08:00"
+generated: "2024-01-12T19:19:34.108972Z"

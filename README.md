@@ -15,7 +15,6 @@ $ helm upgrade --install --wait -f myvalues.yaml powergrid powergrid/powergrid
 ## run an example bot
 ```bash
 $ kubectl apply -f https://github.com/sportshead/powergrid/raw/master/examples/bun/bun.yaml
-$ kubectl rollout restart deployment/powergrid # discover new CRD changes
 ```
 
 ## todo

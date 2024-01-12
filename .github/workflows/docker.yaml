@@ -8,6 +8,7 @@ on:
       - "v*"
     paths-ignore:
       - "charts/**"
+      - "README.md"
 
 jobs:
   coordinator:

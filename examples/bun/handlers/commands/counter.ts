@@ -236,7 +236,9 @@ export const counterModalHandler: ModalHandler = async (interaction) => {
         count,
         initial,
     };
-    for (const component of interaction.data.components.flatMap(c=>c.components)) {
+    for (const component of interaction.data.components.flatMap(
+        (c) => c.components,
+    )) {
         if (component.type !== ComponentType.TextInput) {
             continue;
         }

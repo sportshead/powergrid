@@ -8,12 +8,15 @@ on:
       - "v*"
     paths-ignore:
       - "charts/**"
-      - "README.md"
+      - "**/*.md"
 
 jobs:
-  coordinator:
-    name: Build coordinator
+  powergrid:
+    name: Build Powergrid
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: ["coordinator"]
     steps:
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -24,7 +27,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ghcr.io/sportshead/powergrid-coordinator
+            ghcr.io/sportshead/powergrid-${{ matrix.target }}
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -60,7 +63,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
-          context: "{{defaultContext}}:coordinator"
+          context: "{{defaultContext}}"
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
@@ -69,6 +72,7 @@ jobs:
             GIT_HASH=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          target: ${{ matrix.target }}
   bun:
     name: Build examples/bun
     runs-on: ubuntu-latest

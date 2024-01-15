@@ -1,4 +1,7 @@
 # powergrid
+[![GitHub License](https://img.shields.io/github/license/sportshead/powergrid)](https://github.com/sportshead/powergrid/blob/master/LICENSE)
+[![Build Docker images](https://github.com/sportshead/powergrid/actions/workflows/docker.yaml/badge.svg)](https://github.com/sportshead/powergrid/actions/workflows/docker.yaml)
+[![GitHub Tag](https://img.shields.io/github/v/tag/sportshead/powergrid)](https://github.com/sportshead/powergrid/tags)
 
 Like nginx, but for Discord bots.
 ![architecture diagram](https://i.sportshead.dev/xoyp3o3.jpg)

@@ -1,0 +1,29 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+apiVersion: v2
+appVersion: 0.2.2
+description: Like nginx, but for Discord bots.
+name: powergrid
+type: application
+version: 0.2.2
+
+...
+files:
+  powergrid-0.2.2.tgz: sha256:90559df5c359e05598cc2e7984ad69c74f86f8977075bb1498ace5b406a7e36d
+-----BEGIN PGP SIGNATURE-----
+
+wsFcBAEBCgAQBQJlpHpRCRCodNssv9PP0AAAcE4QAAVyrqwqGgF+2vj8fxRQbiFp
+5KuzbxYcEv/cCoq03aPUQopG+JMCdwDG1NfkEk0QdibtxSpmvYD14Ky8Udy2nB2M
+VMNXR34qAMKa9ziT3khD18ORWs1/PGhIlEMnhOAFZZuWWr3S2X4J7zVTXTJHenP4
+NOJHJMW6iOy8mYLoKf36h0FKi+TWoMF2xh4b/ngVipcbAVwj8cTncykHOf+IklNm
+PxO2r7OXr/BoiA42wpXwtO2Lj572yf2a+snCa9QmR+lOo8qqli7IkXeAMYGevEv7
+Nen8PYsHnuo2wFfhOLHbdYxPi6hLAPxNiIgbfvTkLoVQmB/ObEuy6vJ/2L/DJnnZ
+7FiSxo4qecsNgkl96DAnKN5gUB3weK4Y508/W7WvbqYdaEPqq9tzgSitMtyQCPeY
+RNwjV8nYiljufkji/Hj7ZDtj04lLW+wFAhxF+CJaR61OpQBmq9wWY7BIIyV6dOUq
+xHrhj7em4sTOXnUSF4C6J5BdXQABnT1NvLIoh8V111+SgJuL4AlkU5O65qQ534YW
+Iq+KWWdrEawYFSU06Bbxp7e6V2+W4bDXSbOF/JQ/tgz0Xe85sHtQD4dW5V9+Hizo
+y14Uu+80KAUm70rnZ/GU0hJ3l+PwVb3Qk9v0WXNR6f9xSReNkzmUWVwYvp4kMDxH
+XcusElBNrvbLto/3C1uK
+=BUAD
+-----END PGP SIGNATURE-----

@@ -3,9 +3,9 @@ entries:
   powergrid:
   - apiVersion: v2
     appVersion: 0.2.2
-    created: "2024-01-12T19:19:34.112105Z"
+    created: "2024-01-15T00:20:33.547785Z"
     description: Like nginx, but for Discord bots.
-    digest: d26a4912716e81ccb6a7db7cf091e22ba8eccd061f1f61a858e8f08cb9d24944
+    digest: 90559df5c359e05598cc2e7984ad69c74f86f8977075bb1498ace5b406a7e36d
     name: powergrid
     type: application
     urls:
@@ -51,4 +51,4 @@ entries:
     urls:
     - https://sportshead.github.io/powergrid/powergrid-0.1.0.tgz
     version: 0.1.0
-generated: "2024-01-12T19:19:34.108972Z"
+generated: "2024-01-15T00:20:33.54727Z"

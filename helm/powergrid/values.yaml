@@ -106,6 +106,8 @@ tolerations: []
 affinity: {}
 
 secrets:
+  # set to false to manually manage secrets
+  create: true
   DISCORD_APPLICATION_ID: ""
   DISCORD_PUBLIC_KEY: ""
   DISCORD_BOT_TOKEN: ""

@@ -3,7 +3,7 @@ package version
 import "net/http"
 
 // Semver is the latest semver version of powergrid.
-var Semver = "v0.2.2"
+var Semver = "v0.2.3"
 
 // GitHash is the latest git commit, and is replaced at build time by CI.
 var GitHash = "dev"
